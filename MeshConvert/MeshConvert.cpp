@@ -1,8 +1,10 @@
 ﻿#include <windows.h>
 #include <iostream>
+#include <fstream>
+#include <list>
 #include <stdlib.h>
 
-#include "MeshLoadFile.h"
+#include "Mesh.h"
 
 enum OPTIONS
 {
@@ -10,6 +12,11 @@ enum OPTIONS
 	OPT_OUTPUT,
 	OPT_OBJ,
 	OPT_SDKMESH
+};
+
+struct SConversion
+{
+	wchar_t szSrc[MAX_PATH];
 };
 
 struct SValue
@@ -28,6 +35,12 @@ const SValue g_pOptions[] =
 
 namespace
 {
+	inline HANDLE safe_handle(HANDLE h) { return (h == INVALID_HANDLE_VALUE) ? nullptr : h; }
+
+	struct find_closer { void operator()(HANDLE h) { assert(h != INVALID_HANDLE_VALUE); if (h) FindClose(h); } };
+
+	typedef std::unique_ptr<void, find_closer> ScopedFindHandle;
+
 	DWORD LookupByName(const char *pName, const SValue *pArray)
 	{
 		while (pArray->pName)
@@ -39,6 +52,80 @@ namespace
 		}
 
 		return 0;
+	}
+
+	void SearchForFiles(const wchar_t* path, std::list<SConversion>& files, bool recursive)
+	{
+		// Process files
+		WIN32_FIND_DATAW findData = {};
+		ScopedFindHandle hFile(safe_handle(FindFirstFileExW(path,
+			FindExInfoBasic, &findData,
+			FindExSearchNameMatch, nullptr,
+			FIND_FIRST_EX_LARGE_FETCH)));
+		if (hFile)
+		{
+			for (;;)
+			{
+				if (!(findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_DIRECTORY)))
+				{
+					wchar_t drive[_MAX_DRIVE] = {};
+					wchar_t dir[_MAX_DIR] = {};
+					_wsplitpath_s(path, drive, _MAX_DRIVE, dir, _MAX_DIR, nullptr, 0, nullptr, 0);
+
+					SConversion conv;
+					_wmakepath_s(conv.szSrc, drive, dir, findData.cFileName, nullptr);
+					files.push_back(conv);
+				}
+
+				if (!FindNextFileW(hFile.get(), &findData))
+					break;
+			}
+		}
+
+		// Process directories
+		if (recursive)
+		{
+			wchar_t searchDir[MAX_PATH] = {};
+			{
+				wchar_t drive[_MAX_DRIVE] = {};
+				wchar_t dir[_MAX_DIR] = {};
+				_wsplitpath_s(path, drive, _MAX_DRIVE, dir, _MAX_DIR, nullptr, 0, nullptr, 0);
+				_wmakepath_s(searchDir, drive, dir, L"*", nullptr);
+			}
+
+			hFile.reset(safe_handle(FindFirstFileExW(searchDir,
+				FindExInfoBasic, &findData,
+				FindExSearchLimitToDirectories, nullptr,
+				FIND_FIRST_EX_LARGE_FETCH)));
+			if (!hFile)
+				return;
+
+			for (;;)
+			{
+				if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				{
+					if (findData.cFileName[0] != L'.')
+					{
+						wchar_t subdir[MAX_PATH] = {};
+
+						{
+							wchar_t drive[_MAX_DRIVE] = {};
+							wchar_t dir[_MAX_DIR] = {};
+							wchar_t fname[_MAX_FNAME] = {};
+							wchar_t ext[_MAX_FNAME] = {};
+							_wsplitpath_s(path, drive, dir, fname, ext);
+							wcscat_s(dir, findData.cFileName);
+							_wmakepath_s(subdir, drive, dir, fname, ext);
+						}
+
+						SearchForFiles(subdir, files, recursive);
+					}
+				}
+
+				if (!FindNextFileW(hFile.get(), &findData))
+					break;
+			}
+		}
 	}
 
 	void PrintUsage()
@@ -58,7 +145,15 @@ namespace
 
 int main(int argc, char* argv[])
 {
+	using std::cout;
+	using std::endl;
+
 	DWORD dwOptions = 0;
+
+	char inputFile[MAX_PATH] = "";
+	char outputFile[MAX_PATH] = "";
+
+	Mesh mesh;
 
 	for (int iArg = 1; iArg < argc; iArg++)
 	{
@@ -76,7 +171,80 @@ int main(int argc, char* argv[])
 
 			DWORD  dwOption = LookupByName(pArg, g_pOptions);
 
+			if (!dwOption || (dwOptions & (1 << dwOption)))
+			{
+				cout << "ERROR: unknown command-line option" << pArg << "\n\n";
+				PrintUsage();
+				return 1;
+			}
 
+			dwOptions |= (1 << dwOption);
+
+			switch (dwOption)
+			{
+			case OPT_INPUT:
+				if (++iArg >= argc)
+				{
+					cout << "ERROR: missing input file.\n\n";
+					PrintUsage();
+					return 1;
+				}
+				strcpy_s(inputFile, MAX_PATH, argv[iArg]);
+				break;
+			case OPT_OUTPUT:
+				if (++iArg >= argc)
+				{
+					cout << "ERROR: missing output file.\n\n";
+					PrintUsage();
+					return 1;
+				}
+				strcpy_s(outputFile, MAX_PATH, argv[iArg]);
+				break;
+			case OPT_OBJ:
+				dwOptions |= (1 << OPT_OBJ);
+				break;
+			case OPT_SDKMESH:
+				dwOptions |= (1 << OPT_SDKMESH);
+				break;
+			}
 		}
 	}
+
+	char iExt[_MAX_EXT];
+	char oExt[_MAX_EXT];
+	char ifName[_MAX_FNAME];
+	char ofName[_MAX_FNAME];
+
+	_splitpath_s(inputFile, nullptr, 0, nullptr, 0, ifName, _MAX_FNAME, iExt, _MAX_EXT);
+	_splitpath_s(outputFile, nullptr, 0, nullptr, 0, ofName, _MAX_FNAME, oExt, _MAX_EXT);
+
+	cout << "Input File: " << inputFile << endl;
+	fflush(stdout);
+
+	HRESULT hr = E_NOTIMPL;
+	if (strcmp(iExt, ".obj") == 0)
+	{
+		hr = mesh.LoadFromObj(inputFile);
+	}
+	else if (strcmp(iExt, ".sdkmesh") == 0)
+	{
+		hr = mesh.LoadFromSDKMesh(inputFile);
+	}
+	else
+	{
+		cout << "\nERROR: Importing files not supported\n";
+		return 1;
+	}
+
+	if (FAILED(hr))
+	{
+		cout << "FAILED " << hr << endl;
+		return 1;
+	}
+	else
+	{
+		cout << "Success Load File.\n";
+	}
+
+	return 0;
 }
