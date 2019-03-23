@@ -115,6 +115,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="MeshLoadFIle.cpp" />
+    <ClCompile Include="MeshConvert.cpp" />
+    <ClCompile Include="MeshWriteFile.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MeshLoadFile.h" />
+    <ClInclude Include="MeshWriteFile.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
