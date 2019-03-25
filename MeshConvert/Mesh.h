@@ -33,9 +33,9 @@ public:
 
 	HRESULT LoadFromSDKMesh(const char *inputFile);
 
-	HRESULT ExportToObj();
+	HRESULT ExportToObj(const char *outputFile);
 
-	HRESULT ExportToSDKMesh();
+	HRESULT ExportToSDKMesh(const char *outputFile);
 
 	struct Material
 	{
@@ -86,9 +86,64 @@ public:
 		}
 	};
 
+	struct XMFLOAT2Hash
+	{
+		size_t operator()(const DirectX::XMFLOAT2 &x) const
+		{
+			return static_cast<size_t>(x.x + x.y);
+		}
+	};
+
+	struct XMFLOAT2Compare
+	{
+		bool operator()(const DirectX::XMFLOAT2 &x, const DirectX::XMFLOAT2 &y) const
+		{
+			return (x.x == y.x) && (x.y == y.y);
+		}
+	};
+
+	struct XMFLOAT3Hash
+	{
+		size_t operator()(const DirectX::XMFLOAT3 &x) const
+		{
+			return static_cast<size_t>(x.x + x.y + x.z);
+		}
+	};
+
+	struct XMFLOAT3Compare
+	{
+		bool operator()(const DirectX::XMFLOAT3 &x, const DirectX::XMFLOAT3 &y) const
+		{
+			return (x.x == y.x) && (x.y == y.y) && (x.z == y.z);
+		}
+	};
+
+	struct XMFLOAT4Hash
+	{
+		size_t operator()(const DirectX::XMFLOAT4 &x) const
+		{
+			return static_cast<size_t>(x.x + x.y + x.z + x.w);
+		}
+	};
+
+	struct XMFLOAT4Compare
+	{
+		bool operator()(const DirectX::XMFLOAT4 &x, const DirectX::XMFLOAT4 &y) const
+		{
+			return (x.x == y.x) && (x.y == y.y) && (x.z == y.z) && (x.w == y.w);
+		}
+	};
+
+	struct FaceIndex
+	{
+		uint32_t positionIndex;
+		uint32_t textCoordIndex;
+		uint32_t normalIndex;
+	};
 private:
 
-	HRESULT OutputVertexBuffer(_Out_ DirectX::VBReader &reader);
+	HRESULT SetVertexData(_Inout_ DirectX::VBReader& reader, _In_ size_t nVerts);
+	HRESULT GetVertexBuffer(_Inout_ DirectX::VBWriter& writer) const;
 
 private:
 	DWORD										declOption;

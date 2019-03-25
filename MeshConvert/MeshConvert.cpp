@@ -10,8 +10,10 @@ enum OPTIONS
 {
 	OPT_INPUT = 1,
 	OPT_OUTPUT,
-	OPT_OBJ,
-	OPT_SDKMESH
+	OPT_OUT_OBJ,
+	OPT_OUT_SDKMESH,
+	OPT_IN_OBJ,
+	OPT_IN_SDKMESH
 };
 
 struct SConversion
@@ -29,8 +31,8 @@ const SValue g_pOptions[] =
 {
 	{ "i",			OPT_INPUT },
 	{ "o",			OPT_OUTPUT },
-	{ "obj",		OPT_OBJ },
-	{ "sdkmesh",	OPT_SDKMESH }
+	{ "obj",		OPT_OUT_OBJ },
+	{ "sdkmesh",	OPT_OUT_SDKMESH }
 };
 
 namespace
@@ -200,23 +202,20 @@ int main(int argc, char* argv[])
 				}
 				strcpy_s(outputFile, MAX_PATH, argv[iArg]);
 				break;
-			case OPT_OBJ:
-				dwOptions |= (1 << OPT_OBJ);
+			case OPT_OUT_OBJ:
+				dwOptions |= (1 << OPT_OUT_OBJ);
 				break;
-			case OPT_SDKMESH:
-				dwOptions |= (1 << OPT_SDKMESH);
+			case OPT_OUT_SDKMESH:
+				dwOptions |= (1 << OPT_OUT_SDKMESH);
 				break;
 			}
 		}
 	}
 
 	char iExt[_MAX_EXT];
-	char oExt[_MAX_EXT];
 	char ifName[_MAX_FNAME];
-	char ofName[_MAX_FNAME];
 
 	_splitpath_s(inputFile, nullptr, 0, nullptr, 0, ifName, _MAX_FNAME, iExt, _MAX_EXT);
-	_splitpath_s(outputFile, nullptr, 0, nullptr, 0, ofName, _MAX_FNAME, oExt, _MAX_EXT);
 
 	cout << "Input File: " << inputFile << endl;
 	fflush(stdout);
@@ -225,10 +224,12 @@ int main(int argc, char* argv[])
 	if (strcmp(iExt, ".obj") == 0)
 	{
 		hr = mesh.LoadFromObj(inputFile);
+		dwOptions |= (1 << OPT_IN_OBJ);
 	}
 	else if (strcmp(iExt, ".sdkmesh") == 0)
 	{
 		hr = mesh.LoadFromSDKMesh(inputFile);
+		dwOptions |= (1 << OPT_IN_SDKMESH);
 	}
 	else
 	{
@@ -244,6 +245,50 @@ int main(int argc, char* argv[])
 	else
 	{
 		cout << "Success Load File.\n";
+	}
+
+	char oExt[_MAX_EXT];
+	char ofName[_MAX_FNAME];
+
+	if (*outputFile)
+	{
+		_splitpath_s(outputFile, nullptr, 0, nullptr, 0, ofName, _MAX_FNAME, oExt, _MAX_EXT);
+	}
+	else
+	{
+		if (dwOptions & (1 << OPT_OUT_OBJ))
+		{
+			strcpy_s(oExt, ".obj");
+		}
+		else if (dwOptions & (1 << OPT_OUT_SDKMESH))
+		{
+			strcpy_s(oExt, ".sdkmesh");
+		}
+
+		strcpy_s(ofName, ifName);
+		_makepath_s(outputFile, nullptr, nullptr, ofName, oExt);
+	}
+
+	cout << "Output File: " << outputFile;
+
+	if (!_stricmp(oExt, ".obj"))
+	{
+		hr = mesh.ExportToObj(outputFile);
+	}
+	else if (!_stricmp(oExt, ".sdkmesh"))
+	{
+		hr = mesh.ExportToSDKMesh(outputFile);
+	}
+	else
+	{
+		cout << "\nERROR: Unknown output file type " << oExt << endl;
+		return 1;
+	}
+
+	if (FAILED(hr))
+	{
+		wprintf(L"\nERROR: Failed write (%08X):-> '%ls'\n", hr, outputFile);
+		return 1;
 	}
 
 	return 0;
