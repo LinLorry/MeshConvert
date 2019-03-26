@@ -20,9 +20,9 @@ namespace
 
 	inline HANDLE safe_handle(HANDLE h) { return (h == INVALID_HANDLE_VALUE) ? nullptr : h; }
 
-	typedef std::unordered_map<XMFLOAT2, size_t, Mesh::XMFLOAT2Hash, Mesh::XMFLOAT2Compare> XMFLOAT2Map;
-	typedef std::unordered_map<XMFLOAT3, size_t, Mesh::XMFLOAT3Hash, Mesh::XMFLOAT3Compare> XMFLOAT3Map;
-	typedef std::unordered_map<XMFLOAT4, size_t, Mesh::XMFLOAT4Hash, Mesh::XMFLOAT4Compare> XMFLOAT4Map;
+	typedef std::unordered_map<XMFLOAT2, size_t, Mesh::XMFLOATHash, Mesh::XMFLOATCompare> XMFLOAT2Map;
+	typedef std::unordered_map<XMFLOAT3, size_t, Mesh::XMFLOATHash, Mesh::XMFLOATCompare> XMFLOAT3Map;
+	typedef std::unordered_map<XMFLOAT4, size_t, Mesh::XMFLOATHash, Mesh::XMFLOATCompare> XMFLOAT4Map;
 
 	template<typename T> inline HRESULT read_file(HANDLE hFile, T& value)
 	{
