@@ -24,8 +24,7 @@ private:
 		BLENDWEIGHT
 	};
 public:
-	Mesh();
-	~Mesh();
+	Mesh() noexcept : mnFaces(0), mnVerts(0) {};
 
 	void Clear();
 
@@ -36,6 +35,8 @@ public:
 	HRESULT ExportToObj(const char *outputFile);
 
 	HRESULT ExportToSDKMesh(const char *outputFile);
+
+	HRESULT SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16);
 
 	struct Material
 	{

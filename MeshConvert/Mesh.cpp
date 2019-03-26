@@ -42,15 +42,6 @@ namespace
 	}
 }
 
-Mesh::Mesh()
-{
-}
-
-
-Mesh::~Mesh()
-{
-}
-
 HRESULT Mesh::SetVertexData(_Inout_ DirectX::VBReader& reader, _In_ size_t nVerts)
 {
 	if (!nVerts)
@@ -409,11 +400,22 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 
 	// 16 byte or 32 byte
 	bytesToRead = static_cast<DWORD>(ibHeader.SizeBytes);
-	std::unique_ptr<uint16_t[]> 
-		ib16(new (std::nothrow) uint16_t[bytesToRead / sizeof(uint16_t)]);
-	if (!ReadFile(hFile.get(), ib16.get(), bytesToRead, &bytesRead, nullptr))
-		return HRESULT_FROM_WIN32(GetLastError());
+	if (ibHeader.IndexType == IT_16BIT)
+	{
+		std::unique_ptr<uint16_t[]>
+			ib16(new (std::nothrow) uint16_t[bytesToRead / sizeof(uint16_t)]);
 
+		if (!ReadFile(hFile.get(), ib16.get(), bytesToRead, &bytesRead, nullptr))
+			return HRESULT_FROM_WIN32(GetLastError());
+
+		SetIndexBuffer32(ib16);
+	}
+	else
+	{
+		if (!ReadFile(hFile.get(), mIndices.get(), bytesToRead, &bytesRead, nullptr))
+			return HRESULT_FROM_WIN32(GetLastError());
+	}
+	
 	if (bytesRead != bytesToRead)
 		return E_FAIL;
 
@@ -816,10 +818,48 @@ HRESULT Mesh::ExportToObj(const char *outputFile)
 		outFile << '\n';
 	}
 
+	outFile.close();
+
 	return S_OK;
 }
 
 HRESULT Mesh::ExportToSDKMesh(const char *outputFile)
 {
+	return S_OK;
+}
+
+HRESULT Mesh::SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16)
+{
+	if (!mnFaces)
+		return E_FAIL;
+
+	if ((uint64_t(mnFaces) * 3) >= UINT16_MAX)
+		return E_FAIL;
+
+	size_t count = mnFaces * 3;
+
+	mIndices.reset(new (std::nothrow) uint32_t[count]);
+	if (!mIndices)
+		return E_FAIL;
+
+	const uint16_t* iptr = ib16.get();
+	for (size_t j = 0; j < count; ++j)
+	{
+		uint16_t index = *(iptr++);
+		if (index == uint32_t(-1))
+		{
+			mIndices[j] = uint32_t(-1);
+		}
+		else if (index >= UINT32_MAX)
+		{
+			mIndices.reset();
+			return E_FAIL;
+		}
+		else
+		{
+			mIndices[j] = static_cast<uint32_t>(index);
+		}
+	}
+
 	return S_OK;
 }
