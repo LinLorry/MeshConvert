@@ -11,18 +11,6 @@
 
 class Mesh
 {
-private:
-	enum Decl
-	{
-		SV_Position = 1,
-		NORMAL,
-		COLOR,
-		TANGENT,
-		BINORMAL,
-		TEXCOORD,
-		BLENDINDICES,
-		BLENDWEIGHT
-	};
 public:
 	Mesh() noexcept : mnFaces(0), mnVerts(0) {};
 
@@ -36,7 +24,7 @@ public:
 
 	HRESULT ExportToSDKMesh(const char *outputFile);
 
-	HRESULT SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16);
+	HRESULT SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16, const size_t nFaces);
 
 	struct Material
 	{
@@ -91,35 +79,44 @@ public:
 	{
 		size_t operator()(const DirectX::XMFLOAT2 &x) const
 		{
-			return static_cast<size_t>(x.x + x.y);
+			size_t x_x = *((size_t *)(&x.x));
+			size_t x_y = *((size_t *)(&x.y));
+			return static_cast<size_t>(x_x xor x_y);
 		}
 
 		size_t operator()(const DirectX::XMFLOAT3 &x) const
 		{
-			return static_cast<size_t>(x.x + x.y + x.z);
+			size_t x_x = *((size_t *)(&x.x));
+			size_t x_y = *((size_t *)(&x.y));
+			size_t x_z = *((size_t *)(&x.z));
+			return static_cast<size_t>(x_x xor x_y xor x_z);
 		}
 
 		size_t operator()(const DirectX::XMFLOAT4 &x) const
 		{
-			return static_cast<size_t>(x.x + x.y + x.z + x.w);
+			size_t x_x = *((size_t *)(&x.x));
+			size_t x_y = *((size_t *)(&x.y));
+			size_t x_z = *((size_t *)(&x.z));
+			size_t x_w = *((size_t *)(&x.w));
+			return static_cast<size_t>(x_x xor x_y xor x_z xor x_w);
 		}
 	};
 
 	struct XMFLOATCompare
 	{
-		bool operator()(const DirectX::XMFLOAT2 &x, const DirectX::XMFLOAT2 &y) const
+		inline bool operator()(const DirectX::XMFLOAT2 &x, const DirectX::XMFLOAT2 &y) const
 		{
-			return (x.x == y.x) && (x.y == y.y);
+			return !memcmp(&x, &y, sizeof(DirectX::XMFLOAT2));
 		}
 
-		bool operator()(const DirectX::XMFLOAT3 &x, const DirectX::XMFLOAT3 &y) const
+		inline bool operator()(const DirectX::XMFLOAT3 &x, const DirectX::XMFLOAT3 &y) const
 		{
-			return (x.x == y.x) && (x.y == y.y) && (x.z == y.z);
+			return !memcmp(&x, &y, sizeof(DirectX::XMFLOAT3));
 		}
 
-		bool operator()(const DirectX::XMFLOAT4 &x, const DirectX::XMFLOAT4 &y) const
+		inline bool operator()(const DirectX::XMFLOAT4 &x, const DirectX::XMFLOAT4 &y) const
 		{
-			return (x.x == y.x) && (x.y == y.y) && (x.z == y.z) && (x.w == y.w);
+			return !memcmp(&x, &y, sizeof(DirectX::XMFLOAT4));
 		}
 	};
 
@@ -135,21 +132,20 @@ private:
 	HRESULT GetVertexBuffer(_Inout_ DirectX::VBWriter& writer) const;
 
 private:
-	DWORD										declOption;
 	size_t                                      mnFaces;
 	size_t                                      mnVerts;
 	size_t										mnMaterials;
 	std::unique_ptr<uint32_t[]>                 mIndices;
 	std::unique_ptr<uint32_t[]>                 mAttributes;
 	std::unique_ptr<uint32_t[]>                 mAdjacency;
-	std::unique_ptr<DirectX::XMFLOAT3[]>        mPositions;
-	std::unique_ptr<DirectX::XMFLOAT3[]>        mNormals;
-	std::unique_ptr<DirectX::XMFLOAT4[]>        mTangents;
-	std::unique_ptr<DirectX::XMFLOAT3[]>        mBiTangents;
-	std::unique_ptr<DirectX::XMFLOAT2[]>        mTexCoords;
-	std::unique_ptr<DirectX::XMFLOAT4[]>        mColors;
-	std::unique_ptr<DirectX::XMFLOAT4[]>        mBlendIndices;
-	std::unique_ptr<DirectX::XMFLOAT4[]>        mBlendWeights;
+	std::unique_ptr<DirectX::XMFLOAT3[]>		mPositions;
+	std::unique_ptr<DirectX::XMFLOAT3[]>		mNormals;
+	std::unique_ptr<DirectX::XMFLOAT4[]>		mTangents;
+	std::unique_ptr<DirectX::XMFLOAT3[]>		mBiTangents;
+	std::unique_ptr<DirectX::XMFLOAT2[]>		mTexCoords;
+	std::unique_ptr<DirectX::XMFLOAT4[]>		mColors;
+	std::unique_ptr<DirectX::XMFLOAT4[]>		mBlendIndices;
+	std::unique_ptr<DirectX::XMFLOAT4[]>		mBlendWeights;
 	std::unique_ptr<Material[]>					mMaterials;
 };
 

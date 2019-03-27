@@ -242,10 +242,8 @@ int main(int argc, char* argv[])
 		cout << "FAILED " << hr << endl;
 		return 1;
 	}
-	else
-	{
-		cout << "Success Load File.\n";
-	}
+	
+	cout << "Success Load File.\n";
 
 	char oExt[_MAX_EXT];
 	char ofName[_MAX_FNAME];
@@ -287,9 +285,11 @@ int main(int argc, char* argv[])
 
 	if (FAILED(hr))
 	{
-		wprintf(L"\nERROR: Failed write (%08X):-> '%ls'\n", hr, outputFile);
+		cout << "\nERROR: Failed write " << hr << "-> " << outputFile << endl;
 		return 1;
 	}
+
+	cout << "Success Output File.\n";
 
 	return 0;
 }

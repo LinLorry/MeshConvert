@@ -400,20 +400,24 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 
 	// 16 byte or 32 byte
 	bytesToRead = static_cast<DWORD>(ibHeader.SizeBytes);
+	uint64_t count = ibHeader.NumIndices;
+
 	if (ibHeader.IndexType == IT_16BIT)
 	{
 		std::unique_ptr<uint16_t[]>
-			ib16(new (std::nothrow) uint16_t[bytesToRead / sizeof(uint16_t)]);
+			ib16(new (std::nothrow) uint16_t[count]);
 
 		if (!ReadFile(hFile.get(), ib16.get(), bytesToRead, &bytesRead, nullptr))
 			return HRESULT_FROM_WIN32(GetLastError());
 
-		SetIndexBuffer32(ib16);
+		SetIndexBuffer32(ib16, static_cast<size_t>(ibHeader.NumIndices / 3));
 	}
 	else
 	{
+		mIndices.reset(new (std::nothrow) uint32_t[count]);
 		if (!ReadFile(hFile.get(), mIndices.get(), bytesToRead, &bytesRead, nullptr))
 			return HRESULT_FROM_WIN32(GetLastError());
+		mnFaces = count / 3;
 	}
 	
 	if (bytesRead != bytesToRead)
@@ -441,31 +445,31 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 			+ sizeof(SDKMESH_FRAME)
 			+ header.NumMaterials * sizeof(SDKMESH_MATERIAL);
 		uint64_t nonBufferDataSize = uint64_t(staticDataSize) + uint64_t(subsetArray.size()) * sizeof(UINT) + sizeof(UINT);
-		assert(
-			(header.Version == SDKMESH_FILE_VERSION || header.Version == SDKMESH_FILE_VERSION_V2) &&
-			(header.NumTotalSubsets == static_cast<UINT>(submeshes.size())) &&
-			(header.HeaderSize == headerSize) &&
-			(meshHeader.NumFrameInfluences == 1) &&
-			(header.NonBufferDataSize == nonBufferDataSize) &&
-			(header.VertexStreamHeadersOffset == sizeof(SDKMESH_HEADER)) &&
-			(header.IndexStreamHeadersOffset == header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER)) &&
-			(header.MeshDataOffset == header.IndexStreamHeadersOffset + sizeof(SDKMESH_INDEX_BUFFER_HEADER)) &&
-			(header.SubsetDataOffset == header.MeshDataOffset + sizeof(SDKMESH_MESH)) &&
-			(header.FrameDataOffset == header.SubsetDataOffset + uint64_t(header.NumTotalSubsets) * sizeof(SDKMESH_SUBSET)) &&
-			(header.MaterialDataOffset == header.FrameDataOffset + sizeof(SDKMESH_FRAME))
-		);
+		//assert(
+		//	(header.Version == SDKMESH_FILE_VERSION || header.Version == SDKMESH_FILE_VERSION_V2) &&
+		//	(header.NumTotalSubsets == static_cast<UINT>(submeshes.size())) &&
+		//	(header.HeaderSize == headerSize) &&
+		//	(meshHeader.NumFrameInfluences == 1) &&
+		//	(header.NonBufferDataSize == nonBufferDataSize) &&
+		//	(header.VertexStreamHeadersOffset == sizeof(SDKMESH_HEADER)) &&
+		//	(header.IndexStreamHeadersOffset == header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER)) &&
+		//	(header.MeshDataOffset == header.IndexStreamHeadersOffset + sizeof(SDKMESH_INDEX_BUFFER_HEADER)) &&
+		//	(header.SubsetDataOffset == header.MeshDataOffset + sizeof(SDKMESH_MESH)) &&
+		//	(header.FrameDataOffset == header.SubsetDataOffset + uint64_t(header.NumTotalSubsets) * sizeof(SDKMESH_SUBSET)) &&
+		//	(header.MaterialDataOffset == header.FrameDataOffset + sizeof(SDKMESH_FRAME))
+		//);
 
-		//assert(header.Version == SDKMESH_FILE_VERSION || header.Version == SDKMESH_FILE_VERSION_V2);
-		//assert(header.NumTotalSubsets == static_cast<UINT>(submeshes.size()));
-		//assert(header.HeaderSize == headerSize);
-		//assert(meshHeader.NumFrameInfluences == 1);
-		//assert(header.NonBufferDataSize == nonBufferDataSize);
-		//assert(header.VertexStreamHeadersOffset == sizeof(SDKMESH_HEADER));
-		//assert(header.IndexStreamHeadersOffset == header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER));
-		//assert(header.MeshDataOffset == header.IndexStreamHeadersOffset + sizeof(SDKMESH_INDEX_BUFFER_HEADER));
-		//assert(header.SubsetDataOffset == header.MeshDataOffset + sizeof(SDKMESH_MESH));
-		//assert(header.FrameDataOffset == header.SubsetDataOffset + uint64_t(header.NumTotalSubsets) * sizeof(SDKMESH_SUBSET));
-		//assert(header.MaterialDataOffset == header.FrameDataOffset + sizeof(SDKMESH_FRAME));
+		assert(header.Version == SDKMESH_FILE_VERSION || header.Version == SDKMESH_FILE_VERSION_V2);
+		assert(header.NumTotalSubsets == static_cast<UINT>(submeshes.size()));
+		assert(header.HeaderSize == headerSize);
+		/*assert(meshHeader.NumFrameInfluences == 1);*/
+		/*assert(header.NonBufferDataSize == nonBufferDataSize);
+		assert(header.VertexStreamHeadersOffset == sizeof(SDKMESH_HEADER));
+		assert(header.IndexStreamHeadersOffset == header.VertexStreamHeadersOffset + sizeof(SDKMESH_VERTEX_BUFFER_HEADER));
+		assert(header.MeshDataOffset == header.IndexStreamHeadersOffset + sizeof(SDKMESH_INDEX_BUFFER_HEADER));
+		assert(header.SubsetDataOffset == header.MeshDataOffset + sizeof(SDKMESH_MESH));
+		assert(header.FrameDataOffset == header.SubsetDataOffset + uint64_t(header.NumTotalSubsets) * sizeof(SDKMESH_SUBSET));
+		assert(header.MaterialDataOffset == header.FrameDataOffset + sizeof(SDKMESH_FRAME));*/
 
 		UINT64 offset = header.HeaderSize + header.NonBufferDataSize;
 		assert(vbHeader.DataOffset == offset);
@@ -473,11 +477,11 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 		offset += roundup4k(vbHeader.SizeBytes);
 		assert(ibHeader.DataOffset == offset);
 
-		offset = header.HeaderSize + staticDataSize;
+		/*offset = header.HeaderSize + staticDataSize;
 		assert(meshHeader.SubsetOffset == offset);
 
 		offset += uint64_t(meshHeader.NumSubsets) * sizeof(UINT);
-		assert(meshHeader.FrameInfluenceOffset == offset);
+		assert(meshHeader.FrameInfluenceOffset == offset);*/
 	}
 
 	//
@@ -506,8 +510,8 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 		{ 0xFF, 0, D3DDECLTYPE_UNUSED, 0, 0, 0 },
 	};
 
-	size_t nVerts = static_cast<uint64_t>(vbHeader.NumVertices);
-	size_t stride = static_cast<uint64_t>(vbHeader.StrideBytes);
+	size_t nVerts = static_cast<size_t>(vbHeader.NumVertices);
+	size_t stride = static_cast<size_t>(vbHeader.StrideBytes);
 
 	D3D11_INPUT_ELEMENT_DESC outputLayout[MAX_VERTEX_ELEMENTS] = {};
 	outputLayout[0] = s_elements[0];
@@ -524,35 +528,36 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 	{
 		outputLayout[nDecl] = s_elements[6];
 		++nDecl;
-		declOption |= (1 << BLENDINDICES);
 	}
 
 	if (vbHeader.Decl[nDecl].Usage == D3DDECLUSAGE_NORMAL)
 	{
 		outputLayout[nDecl] = s_elements[1];
 		++nDecl;
-		declOption |= (1 << NORMAL);
 	}
 
 	if (vbHeader.Decl[nDecl].Usage == D3DDECLUSAGE_COLOR)
 	{
 		outputLayout[nDecl] = s_elements[2];
 		++nDecl;
-		declOption |= (1 << COLOR);
+	}
+
+	if (vbHeader.Decl[nDecl].Usage == D3DDECLUSAGE_TEXCOORD)
+	{
+		outputLayout[nDecl] = s_elements[5];
+		++nDecl;
 	}
 
 	if (vbHeader.Decl[nDecl].Usage == D3DDECLUSAGE_TANGENT)
 	{
 		outputLayout[nDecl] = s_elements[3];
 		++nDecl;
-		declOption |= (1 << TANGENT);
 	}
 
 	if (vbHeader.Decl[nDecl].Usage == D3DDECLUSAGE_BINORMAL)
 	{
 		outputLayout[nDecl] = s_elements[4];
 		++nDecl;
-		declOption |= (1 << BINORMAL);
 	}
 
 	{
@@ -571,7 +576,6 @@ HRESULT Mesh::LoadFromSDKMesh(const char *inputFile)
 			return hr;
 	}
 	
-	mnFaces = static_cast<uint64_t>(ibHeader.NumIndices / 3);
 	mMaterials.reset(new (std::nothrow) Material[mnMaterials]);
 	wchar_t buff[MAX_PATH];
 
@@ -707,22 +711,105 @@ HRESULT Mesh::ExportToObj(const char *outputFile)
 {
 	using std::vector;
 
-	ScopedHandle hFile(safe_handle(CreateFile(outputFile, GENERIC_WRITE, NULL, NULL, CREATE_ALWAYS, NULL, NULL)));
-
-	XMFLOAT3Map positionMap;
-	XMFLOAT2Map textCoordMap;
-	XMFLOAT3Map normalMap;
+	XMFLOAT3Map positionMap(mnFaces);
+	XMFLOAT2Map textCoordMap(mnFaces);
+	XMFLOAT3Map normalMap(mnFaces);
 
 	vector<XMFLOAT3> positions;
 	vector<XMFLOAT2> textCoords;
 	vector<XMFLOAT3> normals;
+
+	const XMFLOAT3 *position;
+	const XMFLOAT2 *textCoord;
+	const XMFLOAT3 *normal;
+
+	for (size_t i = 0; i < mnVerts; ++i)
+	{
+		position = &mPositions[i];
+		textCoord = &mTexCoords[i];
+		normal = &mNormals[i];
+
+		auto positionSerch = positionMap.find(*position);
+		auto textCoordSerch = textCoordMap.find(*textCoord);
+		auto normalSerch = normalMap.find(*normal);
+
+		if (positionSerch == positionMap.end())
+		{
+			positionMap.insert(std::make_pair(*position, positions.size() + 1));
+			positions.emplace_back(*position);
+		}
+
+		if (textCoordSerch == textCoordMap.end())
+		{
+			textCoordMap.insert(std::make_pair(*textCoord, textCoords.size() + 1));
+			textCoords.emplace_back(*textCoord);
+		}
+
+		if (normalSerch == normalMap.end())
+		{
+			normalMap.insert(std::make_pair(*normal, normals.size() + 1));
+			normals.emplace_back(*normal);
+		}
+	}
+
 	vector<std::vector<FaceIndex>> faces;
 
 	size_t imIndice = 0;
+	uint32_t i0;
+	uint32_t i1;
+	uint32_t i2;
 
 	for (;;)
 	{
-		if (imIndice >= mnFaces)
+		if (imIndice >= mnFaces * 3)
+		{
+			break;
+		}
+
+		i0 = mIndices[imIndice];
+		i1 = mIndices[imIndice + 1];
+		i2 = mIndices[imIndice + 2];
+
+		std::vector<uint32_t> i = { i0, i1, i2 };
+
+		for (size_t j = imIndice + 3; (mIndices[j] == i0) && (mIndices[j + 1] == i2); j += 3, imIndice += 3)
+		{
+			if (j >= mnFaces * 3)
+				break;
+
+			i2 = mIndices[j + 2];
+			i.emplace_back(i2);
+		}
+
+		vector<FaceIndex> faceIndexs(i.size());
+
+		for (size_t j = 0; j < i.size(); j++)
+		{
+			auto positionSerch = positionMap.find(mPositions[i[j]]);
+			auto textCoordSerch = textCoordMap.find(mTexCoords[i[j]]);
+			auto normalSerch = normalMap.find(mNormals[i[j]]);
+
+			FaceIndex faceIndex = { 
+				positionSerch->second,
+				textCoordSerch->second,
+				normalSerch->second 
+			};
+
+			faceIndex.positionIndex = positionSerch->second;
+
+			faceIndex.textCoordIndex = textCoordSerch->second;
+
+			faceIndex.normalIndex = normalSerch->second;
+
+			faceIndexs[j] = faceIndex;
+		}
+		faces.emplace_back(faceIndexs);
+		imIndice += 3;
+	}
+
+	for (;;)
+	{
+		if (imIndice >= mnFaces * 3)
 		{
 			break;
 		}
@@ -736,9 +823,9 @@ HRESULT Mesh::ExportToObj(const char *outputFile)
 		i.emplace_back(i1);
 		i.emplace_back(i2);
 
-		for (size_t j = imIndice+3; (mIndices[j] == i0) && (mIndices[j+1] == i2); j+=3, imIndice+=3)
+		for (size_t j = imIndice + 3; (mIndices[j] == i0) && (mIndices[j + 1] == i2); j += 3, imIndice += 3)
 		{
-			if (j >= mnFaces)
+			if (j >= mnFaces * 3)
 				break;
 
 			i2 = mIndices[j + 2];
@@ -755,31 +842,47 @@ HRESULT Mesh::ExportToObj(const char *outputFile)
 
 			FaceIndex faceIndex = { 0, 0, 0 };
 
-			if (positionMap.find(*position) == positionMap.end())
+			auto positionSerch = positionMap.find(*position);
+			auto textCoordSerch = textCoordMap.find(*textCoord);
+			auto normalSerch = normalMap.find(*normal);
+
+			if (positionSerch == positionMap.end())
 			{
-				faceIndex.positionIndex = positionMap[*position] = positions.size();
+				faceIndex.positionIndex = positionMap[*position] = positions.size() + 1;
 				positions.emplace_back(*position);
 			}
-
-			if (textCoordMap.find(*textCoord) == textCoordMap.end())
+			else
 			{
-				faceIndex.textCoordIndex = textCoordMap[*textCoord] = textCoords.size();
-				textCoords.emplace_back(*textCoord);
+				faceIndex.positionIndex = positionSerch->second;
 			}
 
-			if (normalMap.find(*normal) == normalMap.end())
+			if (textCoordSerch == textCoordMap.end())
 			{
-				faceIndex.normalIndex = normalMap[*normal] = normals.size();
+				faceIndex.textCoordIndex = textCoordMap[*textCoord] = textCoords.size() + 1;
+				textCoords.emplace_back(*textCoord);
+			}
+			else
+			{
+				faceIndex.textCoordIndex = textCoordSerch->second;
+			}
+
+			if (normalSerch == normalMap.end())
+			{
+				faceIndex.normalIndex = normalMap[*normal] = normals.size() + 1;
 				normals.emplace_back(*normal);
+			}
+			else
+			{
+				faceIndex.normalIndex = normalSerch->second;
 			}
 
 			faceIndexs[j] = faceIndex;
 		}
 		faces.emplace_back(faceIndexs);
 		imIndice += 3;
+		std::cout << imIndice << std::endl;
 	}
 
-	//
 	std::ofstream outFile(outputFile, std::ios::out | std::ios::binary);
 
 	for (auto iter = positions.begin(); iter < positions.end(); ++iter)
@@ -787,15 +890,21 @@ HRESULT Mesh::ExportToObj(const char *outputFile)
 		outFile << "v " << iter->x << ' ' << iter->y << ' ' << iter->z << '\n';
 	}
 
+	outFile.flush();
+
 	for (auto iter = textCoords.begin(); iter < textCoords.end(); ++iter)
 	{
 		outFile << "vt " << iter->x << " " << iter->y << '\n';
 	}
 
+	outFile.flush();
+
 	for (auto iter = normals.begin(); iter < normals.end(); ++iter)
 	{
 		outFile << "vn " << iter->x << " " << iter->y << " " << iter->z << '\n';
 	}
+
+	outFile.flush();
 
 	for (auto iter = faces.begin(); iter < faces.end(); ++iter)
 	{
@@ -828,13 +937,12 @@ HRESULT Mesh::ExportToSDKMesh(const char *outputFile)
 	return S_OK;
 }
 
-HRESULT Mesh::SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16)
+HRESULT Mesh::SetIndexBuffer32(const std::unique_ptr<uint16_t[]> &ib16, const size_t nFaces)
 {
-	if (!mnFaces)
+	if (!nFaces)
 		return E_FAIL;
 
-	if ((uint64_t(mnFaces) * 3) >= UINT16_MAX)
-		return E_FAIL;
+	mnFaces = nFaces;
 
 	size_t count = mnFaces * 3;
 
